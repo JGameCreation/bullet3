@@ -19,6 +19,11 @@ subject to the following restrictions:
 #include "LinearMath/btVector3.h"
 #include "LinearMath/btAlignedObjectArray.h"
 #include "../CommonInterfaces/CommonRigidBodyBase.h"
+#include "json.hpp"
+#include <fstream>
+#include <iostream>
+
+using json = nlohmann::json;
 
 struct SimpleBoxExample : public CommonRigidBodyBase
 {
@@ -62,8 +67,80 @@ void SimpleBoxExample::initPhysics()
 		createRigidBody(mass, groundTransform, groundShape, btVector4(0, 0, 1, 1));
 	}
 
+	btCompoundShape* compoundShape = new btCompoundShape();
+
+	json j;
+
+	try
 	{
-	for (int i=0; i < 2; i++) {
+		std::ifstream stream("complexObjectColliders.json");
+		json data = json::parse(stream);
+		j = data["array"];
+
+		/*for (json::iterator it = j.begin(); it != j.end(); ++it)
+		{
+			btCollisionShape* shape;
+			if (it->find("halfExtents") != it->end())
+			{
+				shape = createBoxShape(btVector3((*it)["halfExtents"]["x"], (*it)["halfExtents"]["y"], (*it)["halfExtents"]["z"]));
+			}
+			else if (it->find("vertices") != it->end())
+			{
+				btConvexHullShape* convexShape = new btConvexHullShape();
+				for (json::iterator point = j["vertices"].begin(); point != j["vertices"].end(); ++point)
+					convexShape->addPoint(btVector3((*point)["x"], (*point)["y"], (*point)["z"]), false);
+				convexShape->recalcLocalAabb();
+				convexShape->optimizeConvexHull();
+				shape = convexShape;
+			}
+			else
+			{
+				throw std::runtime_error("Invalid collider json file");
+			}
+
+			if (it->find("position") != it->end() && it->find("rotation") != it->end())
+			{
+				auto quat = (*it)["rotation"];
+				auto pos = (*it)["position"];
+				btTransform t(btQuaternion(quat["x"], quat["y"], quat["z"], quat["w"]), btVector3(pos["x"], pos["y"], pos["z"]));
+				compoundShape->addChildShape(t, shape);
+			}
+			else
+			{
+				throw std::runtime_error("Invalid collider json file");
+			}
+		}*/
+	}
+	catch (json::parse_error& e)
+	{
+		// output exception information
+		std::cout << "message: " << e.what() << '\n'
+				  << "exception id: " << e.id << '\n'
+				  << "byte position of error: " << e.byte << std::endl;
+	}
+
+	m_collisionShapes.push_back(compoundShape);
+
+	/// Create Dynamic Objects
+	btTransform startTransform;
+	startTransform.setIdentity();
+
+	btScalar mass(1.f);
+
+	//rigidbody is dynamic if and only if mass is non zero, otherwise static
+	bool isDynamic = (mass != 0.f);
+
+	btVector3 localInertia(0, 0, 0);
+	if (isDynamic)
+		compoundShape->calculateLocalInertia(mass, localInertia);
+
+	startTransform.setOrigin(btVector3(
+		btScalar(0),
+		btScalar(20),
+		btScalar(0)));
+	createRigidBody(mass, startTransform, compoundShape);
+
+	/*for (int i=0; i < 2; i++) {
 		//create a few dynamic rigidbodies
 		// Re-using the same collision is better for memory usage and performance
 		btBoxShape* colShapeXZ = createBoxShape(btVector3(2.5, .2, 2.5));
@@ -111,7 +188,7 @@ void SimpleBoxExample::initPhysics()
 			btScalar(20),
 			btScalar(0)));
 		createRigidBody(mass, startTransform, colShapeBox);
-	}
+	}*/
 
 	m_guiHelper->autogenerateGraphicsObjects(m_dynamicsWorld);
 }
