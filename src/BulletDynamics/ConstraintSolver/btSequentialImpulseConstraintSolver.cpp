@@ -736,7 +736,7 @@ int btSequentialImpulseConstraintSolver::getOrInitSolverBody(btCollisionObject& 
 		// Incorrectly set collision object flags can degrade performance in various ways.
 		if (!isMultiBodyType)
 		{
-			btAssert(body.isStaticOrKinematicObject());
+			//btAssert(body.isStaticOrKinematicObject());
 		}
 		//it could be a multibody link collider
 		// all fixed bodies (inf mass) get mapped to a single solver id

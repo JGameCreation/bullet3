@@ -63,11 +63,35 @@ void SimpleBoxExample::initPhysics()
 	}
 
 	{
+	for (int i=0; i < 2; i++) {
 		//create a few dynamic rigidbodies
 		// Re-using the same collision is better for memory usage and performance
-		btBoxShape* colShape = createBoxShape(btVector3(1, 1, 1));
+		btBoxShape* colShapeXZ = createBoxShape(btVector3(2.5, .2, 2.5));
+		btBoxShape* colShapeXY = createBoxShape(btVector3(2.5, 2.5, .2));
+		btBoxShape* colShapeYZ = createBoxShape(btVector3(.2, 2.5, 2.5));
 
-		m_collisionShapes.push_back(colShape);
+		btTransform t;
+		btCompoundShape* colShapeBox = new btCompoundShape();
+		t.setIdentity();
+		t.setOrigin(btVector3(0, -2.5 + .2 + 3 + 6 * i, 0));
+		colShapeBox->addChildShape(t, colShapeXZ);
+		t.setIdentity();
+		t.setOrigin(btVector3(0, 2.5 - .2 + 3 + 6 * i, 0));
+		colShapeBox->addChildShape(t, colShapeXZ);
+		t.setIdentity();
+		t.setOrigin(btVector3(-2.5 + .2, 0 + 3 + 6 * i, 0));
+		colShapeBox->addChildShape(t, colShapeYZ);
+		t.setIdentity();
+		t.setOrigin(btVector3(2.5 - .2, 0 + 3 + 6 * i, 0));
+		colShapeBox->addChildShape(t, colShapeYZ);
+		t.setIdentity();
+		t.setOrigin(btVector3(0, 0 + 3 + 6 * i, -2.5 + .2));
+		colShapeBox->addChildShape(t, colShapeXY);
+		t.setIdentity();
+		t.setOrigin(btVector3(0, 0 + 3 + 6 * i, 2.5 - .2));
+		colShapeBox->addChildShape(t, colShapeXY);
+
+		m_collisionShapes.push_back(colShapeBox);
 
 		/// Create Dynamic Objects
 		btTransform startTransform;
@@ -80,13 +104,13 @@ void SimpleBoxExample::initPhysics()
 
 		btVector3 localInertia(0, 0, 0);
 		if (isDynamic)
-			colShape->calculateLocalInertia(mass, localInertia);
+			colShapeBox->calculateLocalInertia(mass, localInertia);
 
 		startTransform.setOrigin(btVector3(
 			btScalar(0),
 			btScalar(20),
 			btScalar(0)));
-		createRigidBody(mass, startTransform, colShape);
+		createRigidBody(mass, startTransform, colShapeBox);
 	}
 
 	m_guiHelper->autogenerateGraphicsObjects(m_dynamicsWorld);
