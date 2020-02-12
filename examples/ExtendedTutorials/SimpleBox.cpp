@@ -19,11 +19,9 @@ subject to the following restrictions:
 #include "LinearMath/btVector3.h"
 #include "LinearMath/btAlignedObjectArray.h"
 #include "../CommonInterfaces/CommonRigidBodyBase.h"
-#include "json.hpp"
+#include <nlohmann\json.hpp>
 #include <fstream>
 #include <iostream>
-
-using json = nlohmann::json;
 
 struct SimpleBoxExample : public CommonRigidBodyBase
 {
@@ -68,27 +66,34 @@ void SimpleBoxExample::initPhysics()
 	}
 
 	btCompoundShape* compoundShape = new btCompoundShape();
-
-	json j;
+	btScalar scalingFactor(100);
 
 	try
 	{
-		std::ifstream stream("complexObjectColliders.json");
-		json data = json::parse(stream);
-		j = data["array"];
+		std::ifstream stream(R"(C:\Users\neun8\Documents\Code\bullet3\examples\ExtendedTutorials\complexObjectColliders.json)");
+		// std::string str((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+		auto data = nlohmann::json::parse(stream);
+		auto j = data["array"];
 
-		/*for (json::iterator it = j.begin(); it != j.end(); ++it)
+		for (nlohmann::json::iterator it = j.begin(); it != j.end(); ++it)
 		{
 			btCollisionShape* shape;
 			if (it->find("halfExtents") != it->end())
 			{
-				shape = createBoxShape(btVector3((*it)["halfExtents"]["x"], (*it)["halfExtents"]["y"], (*it)["halfExtents"]["z"]));
+				auto halfExtents = btVector3((*it)["halfExtents"]["x"], (*it)["halfExtents"]["y"], (*it)["halfExtents"]["z"]);
+				halfExtents *= scalingFactor;
+				shape = createBoxShape(halfExtents);
 			}
 			else if (it->find("vertices") != it->end())
 			{
 				btConvexHullShape* convexShape = new btConvexHullShape();
-				for (json::iterator point = j["vertices"].begin(); point != j["vertices"].end(); ++point)
-					convexShape->addPoint(btVector3((*point)["x"], (*point)["y"], (*point)["z"]), false);
+				for (nlohmann::json::iterator point = (*it)["vertices"].begin(); point != (*it)["vertices"].end(); ++point)
+				{
+					auto vec = btVector3((*point)["x"], (*point)["y"], ((*point)["z"]));
+					vec *= scalingFactor;
+					convexShape->addPoint(vec, false);
+				}
+
 				convexShape->recalcLocalAabb();
 				convexShape->optimizeConvexHull();
 				shape = convexShape;
@@ -102,16 +107,16 @@ void SimpleBoxExample::initPhysics()
 			{
 				auto quat = (*it)["rotation"];
 				auto pos = (*it)["position"];
-				btTransform t(btQuaternion(quat["x"], quat["y"], quat["z"], quat["w"]), btVector3(pos["x"], pos["y"], pos["z"]));
+				btTransform t(btQuaternion(quat["x"], quat["y"], quat["z"], quat["w"]), btVector3(pos["x"] * scalingFactor, pos["y"] * scalingFactor, pos["z"] * scalingFactor));
 				compoundShape->addChildShape(t, shape);
 			}
 			else
 			{
 				throw std::runtime_error("Invalid collider json file");
 			}
-		}*/
+		}
 	}
-	catch (json::parse_error& e)
+	catch (nlohmann::json::parse_error& e)
 	{
 		// output exception information
 		std::cout << "message: " << e.what() << '\n'
