@@ -107,7 +107,13 @@ void SimpleBoxExample::initPhysics()
 			{
 				auto quat = (*it)["rotation"];
 				auto pos = (*it)["position"];
-				btTransform t(btQuaternion(quat["x"], quat["y"], quat["z"], quat["w"]), btVector3(pos["x"] * scalingFactor, pos["y"] * scalingFactor, pos["z"] * scalingFactor));
+				// btTransform t(btQuaternion(quat["x"], quat["y"], quat["z"], quat["w"]), btVector3(pos["x"] * scalingFactor, pos["y"] * scalingFactor, pos["z"] * scalingFactor));
+				btTransform t;
+				t.setIdentity();
+				auto vec = btVector3(pos["x"], pos["y"], pos["z"]);
+				vec *= scalingFactor; 
+				t.setOrigin(vec);
+				t.setRotation(btQuaternion(quat["x"], quat["y"], quat["z"], quat["w"]));
 				compoundShape->addChildShape(t, shape);
 			}
 			else
