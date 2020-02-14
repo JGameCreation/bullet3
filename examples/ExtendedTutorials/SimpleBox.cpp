@@ -22,6 +22,7 @@ subject to the following restrictions:
 #include <nlohmann\json.hpp>
 #include <fstream>
 #include <iostream>
+#include <bitset> 
 
 struct SimpleBoxExample : public CommonRigidBodyBase
 {
@@ -65,91 +66,107 @@ void SimpleBoxExample::initPhysics()
 		createRigidBody(mass, groundTransform, groundShape, btVector4(0, 0, 1, 1));
 	}
 
-	btCompoundShape* compoundShape = new btCompoundShape();
-	btScalar scalingFactor(100);
-
-	try
+	for (int i = 0; i < 2; i++)
 	{
-		std::ifstream stream(R"(C:\Users\neun8\Documents\Code\bullet3\examples\ExtendedTutorials\complexObjectColliders.json)");
-		// std::string str((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
-		auto data = nlohmann::json::parse(stream);
-		auto j = data["array"];
+		btCompoundShape* compoundShape = new btCompoundShape();
+		btScalar scalingFactor(100);
 
-		for (nlohmann::json::iterator it = j.begin(); it != j.end(); ++it)
+		try
 		{
-			btCollisionShape* shape;
-			if (it->find("halfExtents") != it->end())
+			std::ifstream stream(R"(C:\Users\neun8\Documents\Code\bullet3\examples\ExtendedTutorials\complexObjectColliders4.json)");
+			// std::string str((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+			auto data = nlohmann::json::parse(stream);
+			auto j = data;  //["array"];
+
+			for (nlohmann::json::iterator it = j.begin(); it != j.end(); ++it)
 			{
-				auto halfExtents = btVector3((*it)["halfExtents"]["x"], (*it)["halfExtents"]["y"], (*it)["halfExtents"]["z"]);
-				halfExtents *= scalingFactor;
-				shape = createBoxShape(halfExtents);
-			}
-			else if (it->find("vertices") != it->end())
-			{
-				btConvexHullShape* convexShape = new btConvexHullShape();
-				for (nlohmann::json::iterator point = (*it)["vertices"].begin(); point != (*it)["vertices"].end(); ++point)
+				btCollisionShape* shape;
+				if (it->find("halfExtents") != it->end())
 				{
-					auto vec = btVector3((*point)["x"], (*point)["y"], ((*point)["z"]));
-					vec *= scalingFactor;
-					convexShape->addPoint(vec, false);
+					auto halfExtents = btVector3((*it)["halfExtents"]["x"], (*it)["halfExtents"]["y"], (*it)["halfExtents"]["z"]);
+					halfExtents *= scalingFactor;
+					shape = createBoxShape(halfExtents);
+				}
+				else if (it->find("vertices") != it->end())
+				{
+					std::bitset<100> relevantPoints;
+					for (nlohmann::json::iterator face = (*it)["faces"].begin(); face != (*it)["faces"].end(); ++face)
+					{
+						for (nlohmann::json::iterator pointIt = (*face).begin(); pointIt != (*face).end(); ++pointIt)
+						{
+							relevantPoints[(*pointIt).get<int>()] = 1;
+						}
+					}
+					btConvexHullShape* convexShape = new btConvexHullShape();
+					int i = 0;
+					for (nlohmann::json::iterator point = (*it)["vertices"].begin(); point != (*it)["vertices"].end(); ++point, ++i)
+					{
+						if (relevantPoints[i])
+						{
+							auto vec = btVector3((*point)["x"], (*point)["y"], ((*point)["z"]));
+							vec *= scalingFactor;
+							convexShape->addPoint(vec, false);
+						}					
+					}
+
+					convexShape->recalcLocalAabb();
+					convexShape->optimizeConvexHull();
+					shape = convexShape;
+				}
+				else
+				{
+					throw std::runtime_error("Invalid collider json file");
 				}
 
-				convexShape->recalcLocalAabb();
-				convexShape->optimizeConvexHull();
-				shape = convexShape;
-			}
-			else
-			{
-				throw std::runtime_error("Invalid collider json file");
-			}
-
-			if (it->find("position") != it->end() && it->find("rotation") != it->end())
-			{
-				auto quat = (*it)["rotation"];
-				auto pos = (*it)["position"];
-				// btTransform t(btQuaternion(quat["x"], quat["y"], quat["z"], quat["w"]), btVector3(pos["x"] * scalingFactor, pos["y"] * scalingFactor, pos["z"] * scalingFactor));
-				btTransform t;
-				t.setIdentity();
-				auto vec = btVector3(pos["x"], pos["y"], pos["z"]);
-				vec *= scalingFactor; 
-				t.setOrigin(vec);
-				t.setRotation(btQuaternion(quat["x"], quat["y"], quat["z"], quat["w"]));
-				compoundShape->addChildShape(t, shape);
-			}
-			else
-			{
-				throw std::runtime_error("Invalid collider json file");
+				if (it->find("position") != it->end() && it->find("rotation") != it->end())
+				{
+					auto quat = (*it)["rotation"];
+					auto pos = (*it)["position"];
+					// btTransform t(btQuaternion(quat["x"], quat["y"], quat["z"], quat["w"]), btVector3(pos["x"] * scalingFactor, pos["y"] * scalingFactor, pos["z"] * scalingFactor));
+					btTransform t;
+					t.setIdentity();
+					auto vec = btVector3(pos["x"], pos["y"], pos["z"]);
+					vec *= scalingFactor;
+					t.setOrigin(vec);
+					t.setRotation(btQuaternion(quat["x"], quat["y"], quat["z"], quat["w"]));
+					compoundShape->addChildShape(t, shape);
+				}
+				else
+				{
+					throw std::runtime_error("Invalid collider json file");
+				}
 			}
 		}
+		catch (nlohmann::json::parse_error& e)
+		{
+			// output exception information
+			std::cout << "message: " << e.what() << '\n'
+					  << "exception id: " << e.id << '\n'
+					  << "byte position of error: " << e.byte << std::endl;
+		}
+
+		m_collisionShapes.push_back(compoundShape);
+
+		/// Create Dynamic Objects
+		btTransform startTransform;
+		startTransform.setIdentity();
+
+		btScalar mass(10.f);
+
+		//rigidbody is dynamic if and only if mass is non zero, otherwise static
+		bool isDynamic = (mass != 0.f);
+
+		btVector3 localInertia(0, 0, 0);
+		if (isDynamic)
+			compoundShape->calculateLocalInertia(mass, localInertia);
+
+		startTransform.setOrigin(btVector3(
+			btScalar(0),
+			btScalar(20 + 50 * i),
+			btScalar(0)));
+		btRigidBody* body = createRigidBody(mass, startTransform, compoundShape);
+		body->setDamping(0.42, 0.42);
 	}
-	catch (nlohmann::json::parse_error& e)
-	{
-		// output exception information
-		std::cout << "message: " << e.what() << '\n'
-				  << "exception id: " << e.id << '\n'
-				  << "byte position of error: " << e.byte << std::endl;
-	}
-
-	m_collisionShapes.push_back(compoundShape);
-
-	/// Create Dynamic Objects
-	btTransform startTransform;
-	startTransform.setIdentity();
-
-	btScalar mass(1.f);
-
-	//rigidbody is dynamic if and only if mass is non zero, otherwise static
-	bool isDynamic = (mass != 0.f);
-
-	btVector3 localInertia(0, 0, 0);
-	if (isDynamic)
-		compoundShape->calculateLocalInertia(mass, localInertia);
-
-	startTransform.setOrigin(btVector3(
-		btScalar(0),
-		btScalar(20),
-		btScalar(0)));
-	createRigidBody(mass, startTransform, compoundShape);
 
 	/*for (int i=0; i < 2; i++) {
 		//create a few dynamic rigidbodies
